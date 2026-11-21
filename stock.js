@@ -318,10 +318,11 @@ Object.assign(APP, {
       })
     };
     try {
-      const { data, error } = await sbClient.rpc('create_inventory_voucher', payload);
-      if (error) throw error;
+      // Reserve the next visible number before posting; gaps are safer than duplicate challan numbers.
       st.counters[ck] = seq;
       await this.saveSettings(st);
+      const { data, error } = await sbClient.rpc('create_inventory_voucher', payload);
+      if (error) throw error;
       await this.loadCloudData();
       const v = this.getVouchers().find(x => x._dbId === data);
       if (!v) throw new Error('চালান সেভ হয়েছে, কিন্তু রিফ্রেশ করে পাওয়া যায়নি');
