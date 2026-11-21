@@ -515,9 +515,9 @@ const APP = {
   },
 
   openNotif(id) {
-    const list = this.load('notifs', []);
+    const list = this._notifs || [];
     const n = list.find((x) => x.id === id);
-    if (n) { n.read = true; this.save('notifs', list); }
+    if (n) { n.read = true; this.save('notifs', list).catch(error => this.showToast(error.message || 'নোটিফিকেশন আপডেট হয়নি','error')); }
     this.updateNotifBadge();
     this.renderNotifPanel();
     if (n && n.vid && this.getVouchers().some((v) => v.id === n.vid)) {
@@ -526,8 +526,8 @@ const APP = {
     }
   },
   markAllRead() {
-    const list = this.load('notifs', []).map((n) => ({ ...n, read: true }));
-    this.save('notifs', list);
+    const list = (this._notifs || []).map((n) => ({ ...n, read: true }));
+    this.save('notifs', list).catch(error => this.showToast(error.message || 'নোটিফিকেশন আপডেট হয়নি','error'));
     this.updateNotifBadge();
     this.renderNotifPanel();
   },
