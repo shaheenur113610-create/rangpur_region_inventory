@@ -235,7 +235,7 @@ Object.assign(APP, {
       this.notify('success', 'নতুন আইটেম', `${data.name} (${data.code}) যোগ করা হয়েছে।`);
       this.showToast('নতুন আইটেম যোগ হয়েছে');
     }
-    this.save('items', items);
+    try { await this.save('items', items); } catch (error) { this.showToast(error.message || 'Supabase-এ আইটেম সেভ হয়নি', 'error'); return; }
     this.closeModal();
     this.navigate('items');
   },
@@ -249,8 +249,8 @@ Object.assign(APP, {
     this.confirmModal({
       title: 'আইটেম ডিলিট', okText: 'ডিলিট করুন', okClass: 'btn-danger',
       html: `<p><strong>${esc(item.name)}</strong> (${esc(item.code)}) ডিলিট করতে চান?</p>`,
-      onOk: () => {
-        this.save('items', this.getItems().filter((i) => i.id !== id));
+      onOk: async () => {
+        try { await this.save('items', this.getItems().filter((i) => i.id !== id)); } catch (error) { this.showToast(error.message || 'আইটেম ডিলিট হয়নি', 'error'); return; }
         this.notify('danger', 'আইটেম ডিলিট', `${item.name} (${item.code}) মুছে ফেলা হয়েছে।`);
         this.showToast('আইটেম ডিলিট হয়েছে');
         this.navigate('items');
@@ -354,7 +354,7 @@ Object.assign(APP, {
       this.notify('success', 'নতুন শাখা', `${data.name} (${data.code}) যোগ করা হয়েছে।`);
       this.showToast('নতুন শাখা যোগ হয়েছে');
     }
-    this.save('branches', branches);
+    try { await this.save('branches', branches); } catch (error) { this.showToast(error.message || 'Supabase-এ শাখা সেভ হয়নি', 'error'); return; }
     this.closeModal();
     this.navigate('branches');
   },
@@ -368,8 +368,8 @@ Object.assign(APP, {
     this.confirmModal({
       title: 'শাখা ডিলিট', okText: 'ডিলিট করুন', okClass: 'btn-danger',
       html: `<p><strong>${esc(b.name)}</strong> (${esc(b.code)}) ডিলিট করতে চান?</p>`,
-      onOk: () => {
-        this.save('branches', this.getBranches().filter((x) => x.id !== id));
+      onOk: async () => {
+        try { await this.save('branches', this.getBranches().filter((x) => x.id !== id)); } catch (error) { this.showToast(error.message || 'শাখা ডিলিট হয়নি', 'error'); return; }
         this.notify('danger', 'শাখা ডিলিট', `${b.name} (${b.code}) মুছে ফেলা হয়েছে।`);
         this.showToast('শাখা ডিলিট হয়েছে');
         this.navigate('branches');
