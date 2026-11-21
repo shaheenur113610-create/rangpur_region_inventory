@@ -223,15 +223,16 @@ Object.assign(APP, {
           <form id="bulkForm" data-type="out" onsubmit="APP.saveStockOut(event)">
             <div class="form-grid">
               <div class="form-group"><label>তারিখ <span class="required">*</span></label>
-                <input type="date" class="form-control" name="date" value="${this.today()}" onchange="APP.refreshNo()" required></div>
+                <input type="date" class="form-control" name="date" value="${this.today()}" onchange="APP.refreshNo();APP.refreshAutoMemoNo()" required></div>
               <div class="form-group"><label>শাখা <span class="required">*</span></label>
-                <select class="form-control" name="branchId" onchange="APP.showBranchInfo(this)" required>
+                <select class="form-control" name="branchId" onchange="APP.showBranchInfo(this);APP.refreshAutoMemoNo()" required>
                   <option value="">-- শাখা সিলেক্ট করুন --</option>
                   ${branches.map((b) => `<option value="${b.id}">${esc(b.code)} - ${esc(b.name)}</option>`).join('')}
                 </select>
                 <small class="muted" id="branchInfo"></small></div>
               <div class="form-group"><label>রিকুইজিশন / মেমো নং <span class="required">*</span></label>
-                <input type="text" class="form-control" name="reference" required placeholder="REQ-001"></div>
+                <input type="text" class="form-control" name="reference" required readonly placeholder="শাখা ও তারিখ নির্বাচন করলে তৈরি হবে" style="background:var(--bg);cursor:not-allowed">
+                <small class="muted">শাখা ও তারিখ অনুযায়ী স্বয়ংক্রিয়ভাবে তৈরি হবে</small></div>
               <div class="form-group"><label>মন্তব্য</label>
                 <input type="text" class="form-control" name="remarks"></div>
             </div>
@@ -256,12 +257,36 @@ Object.assign(APP, {
         <div class="card-body">${this.recentVouchersTable('out')}</div>
       </div>`;
     this.updateBulkSummary();
+    this.refreshAutoMemoNo();
   },
 
   showBranchInfo(sel) {
     const b = this.getBranches().find((x) => x.id === Number(sel.value));
     document.getElementById('branchInfo').textContent = b
       ? `কোড: ${b.code}${b.address ? ' • ' + b.address : ''}${b.contact ? ' • ' + b.contact : ''}` : '';
+  },
+
+  refreshAutoMemoNo() {
+    const f = document.getElementById('bulkForm');
+    if (!f || f.dataset.type !== 'out') return;
+    const el = f.querySelector('[name="reference"]');
+    if (!el) return;
+    const branchId = Number(f.branchId.value);
+    const branch = this.getBranches().find((b) => b.id === branchId);
+    const date = f.date.value;
+    if (!branch || !date) { el.value = ''; return; }
+    const month = date.slice(5, 7);
+    const day = date.slice(8, 10);
+    const prefix = branch.name + '/' + month + '/' + day + '/';
+    let maxSeq = 0;
+    this.getVouchers().forEach((v) => {
+      if (v.type !== 'out' || v.branchId !== branchId || v.date !== date) return;
+      const ref = String(v.reference || '');
+      if (!ref.startsWith(prefix)) return;
+      const seq = Number(ref.slice(prefix.length));
+      if (Number.isInteger(seq) && seq > maxSeq) maxSeq = seq;
+    });
+    el.value = prefix + String(maxSeq + 1).padStart(4, '0');
   },
 
   saveStockOut(e) {
