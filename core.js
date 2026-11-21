@@ -92,7 +92,7 @@ const APP = {
   },
 
   // ========== SUPABASE DATA LAYER ==========
-  _items: [], _branches: [], _vouchers: [], _settings: null,
+  _items: [], _branches: [], _vouchers: [], _settings: null, _notifs: [],
   _branchLocationById: {}, _regionalLocationId: null,
   load(key, def) {
     try {
@@ -102,7 +102,25 @@ const APP = {
   },
   has(key) { return localStorage.getItem(this.K[key]) !== null; },
   async save(key, data) {
-    if (key === 'notifs' || key === 'auth') {
+    if (key === 'notifs') {
+      const rows = data.map(n => ({
+        id:Number(n.id), user_id:this.user.id, type:n.type, title:n.title, message:n.message,
+        voucher_id:n._dbVoucherId || (n.vid ? this._vouchers.find(v => v.id === n.vid)?._dbId : null) || null,
+        created_at:n.time || new Date().toISOString(), is_read:!!n.read
+      }));
+      if (rows.length) {
+        const { error } = await sbClient.from('user_notifications').upsert(rows,{onConflict:'user_id,id'});
+        if (error) throw error;
+      }
+      const keep = data.map(n=>Number(n.id));
+      let del = sbClient.from('user_notifications').delete().eq('user_id',this.user.id);
+      if (keep.length) del = del.not('id','in',`(${keep.join(',')})`);
+      const { error:de } = await del;
+      if (de) throw de;
+      this._notifs = data;
+      return;
+    }
+    if (key === 'auth') {
       localStorage.setItem(this.K[key], JSON.stringify(data));
       return;
     }
@@ -139,14 +157,15 @@ const APP = {
     this._settings = s;
   },
   async loadCloudData() {
-    const [ir, br, lr, dr, sr] = await Promise.all([
+    const [ir, br, lr, dr, sr, nr] = await Promise.all([
       sbClient.from('items').select('*').eq('is_active',true).order('code'),
       sbClient.from('branches').select('*').eq('is_active',true).order('code'),
       sbClient.from('inventory_locations').select('*').eq('is_active',true),
       sbClient.from('inventory_documents').select('*,inventory_document_lines(*)').order('document_date',{ascending:false}),
-      sbClient.from('app_settings').select('settings').eq('id',true).maybeSingle()
+      sbClient.from('app_settings').select('settings').eq('id',true).maybeSingle(),
+      sbClient.from('user_notifications').select('*').order('created_at',{ascending:false}).limit(200)
     ]);
-    for (const x of [ir,br,lr,dr,sr]) if (x.error) throw x.error;
+    for (const x of [ir,br,lr,dr,sr,nr]) if (x.error) throw x.error;
     this._items = (ir.data || []).map((x,n) => ({
       id:n+1,_dbId:x.id,code:x.code,name:x.name,category:x.category,unit:x.unit,
       reorderLevel:Number(x.reorder_level || 0),description:x.description || ''
@@ -178,6 +197,16 @@ const APP = {
       };
     });
     this._settings = sr.data?.settings || this.DEFAULT_SETTINGS;
+    const oldLocalNotifs = this.load('notifs', []);
+    this._notifs = (nr.data || []).map(n => ({
+      id:Number(n.id),type:n.type,title:n.title,message:n.message,
+      vid:this._vouchers.find(v=>v._dbId===n.voucher_id)?.id || null,
+      _dbVoucherId:n.voucher_id,time:n.created_at,read:n.is_read
+    }));
+    if (this._notifs.length === 0 && oldLocalNotifs.length) {
+      this._notifs = oldLocalNotifs.slice(0,200);
+      await this.save('notifs', this._notifs);
+    }
   },
 
   generateId(list) {
@@ -437,16 +466,16 @@ const APP = {
 
   // ========== NOTIFICATIONS ==========
   notify(type, title, message, vid = null) {
-    const list = this.load('notifs', []);
+    const list = this._notifs || [];
     this._nc = ((this._nc || 0) + 1) % 1000;
     list.unshift({ id: Date.now() * 1000 + this._nc, type, title, message, vid, time: new Date().toISOString(), read: false });
-    this.save('notifs', list.slice(0, 200));
+    this.save('notifs', list.slice(0, 200)).catch(error => console.error('Notification cloud save failed:',error));
     this.updateNotifBadge();
     if (!document.getElementById('notifPanel').classList.contains('hidden')) this.renderNotifPanel();
   },
 
   updateNotifBadge() {
-    const n = this.load('notifs', []).filter((x) => !x.read).length;
+    const n = (this._notifs || []).filter((x) => !x.read).length;
     const b = document.getElementById('notifBadge');
     if (!b) return;
     b.textContent = n > 99 ? '99+' : n;
@@ -461,7 +490,7 @@ const APP = {
   closeNotifPanel() { document.getElementById('notifPanel')?.classList.add('hidden'); },
 
   renderNotifPanel() {
-    const list = this.load('notifs', []);
+    const list = this._notifs || [];
     const icons = { success: 'check-circle', info: 'info-circle', warning: 'exclamation-triangle', danger: 'times-circle' };
     document.getElementById('notifPanel').innerHTML = `
       <div class="notif-head">
@@ -503,7 +532,7 @@ const APP = {
     this.renderNotifPanel();
   },
   clearNotifs() {
-    this.save('notifs', []);
+    this.save('notifs', []).catch(error => this.showToast(error.message || 'নোটিফিকেশন মুছতে সমস্যা হয়েছে','error'));
     this.updateNotifBadge();
     this.renderNotifPanel();
   },
