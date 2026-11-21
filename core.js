@@ -418,6 +418,13 @@ const APP = {
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('appRoot').classList.remove('hidden');
     document.getElementById('userName').textContent = this.user.name || this.user.email || this.user.username;
+    const roleLabel = this.user.role === 'regional_admin' ? 'Regional Admin' : 'Store Manager';
+    const roleNode = document.querySelector('.user-info small');
+    if (roleNode) roleNode.textContent = roleLabel + ' • POPI Rangpur';
+    document.querySelectorAll('.nav-item').forEach((node) => {
+      const restricted = ['items','branches','settings'].includes(node.dataset.page);
+      node.classList.toggle('hidden', this.user.role === 'store_manager' && restricted);
+    });
     if (fresh) {
       this.notify('info', 'লগইন সফল', `${this.user.name || this.user.username} সিস্টেমে লগইন করেছেন।`);
       const low = this.getAllStock().filter((i) => this.isLow(i));
@@ -528,6 +535,10 @@ const APP = {
 
   navigate(page) {
     if (!this.user) return;
+    if (this.user.role === 'store_manager' && ['items','branches','settings'].includes(page)) {
+      this.showToast('এই মেনু ব্যবহারের অনুমতি নেই', 'error');
+      return;
+    }
     this.page = page;
     document.querySelectorAll('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.page === page));
     const t = this.TITLES[page] || [page, ''];
