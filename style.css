@@ -1075,3 +1075,146 @@ button, input, select, textarea { max-width: 100%; }
   html, body { max-width: 100%; overflow-x: hidden; }
   .app, .main, #content { max-width: 100%; min-width: 0; }
 }
+
+
+/* =====================================================
+   POPI-inspired visual identity refresh
+   Brand palette: POPI Green + Magenta, supported by
+   Teal and warm Gold. Functional layout unchanged.
+   ===================================================== */
+:root {
+  --primary: #176B45;
+  --primary-light: #21865A;
+  --primary-dark: #104B34;
+  --accent: #C2185B;
+  --accent-light: #D93678;
+  --success: #218653;
+  --warning: #C88719;
+  --danger: #C62845;
+  --info: #147D91;
+  --bg: #F5F8F5;
+  --card: #FFFFFF;
+  --border: #E1EAE3;
+  --text: #24352D;
+  --text-muted: #68796F;
+  --text-light: #91A097;
+  --shadow: 0 2px 8px rgba(23, 75, 52, .055), 0 1px 2px rgba(23, 75, 52, .04);
+  --shadow-md: 0 8px 20px rgba(23, 75, 52, .09), 0 2px 5px rgba(23, 75, 52, .04);
+  --shadow-lg: 0 18px 44px rgba(23, 55, 40, .18);
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 90% 0%, rgba(194,24,91,.035), transparent 34%),
+    var(--bg);
+  color: var(--text);
+}
+
+.sidebar {
+  background: linear-gradient(165deg, #104B34 0%, #176B45 58%, #0F5940 100%);
+  box-shadow: 5px 0 24px rgba(16,75,52,.10);
+}
+.sidebar-header { border-bottom-color: rgba(255,255,255,.14); }
+.logo i { color: #F3C75B; }
+.logo h1 { letter-spacing: .15px; }
+.nav-item { border-radius: 10px; margin-bottom: 5px; }
+.nav-item:hover { background: rgba(255,255,255,.13); }
+.nav-item.active {
+  background: linear-gradient(100deg, #C2185B, #D93678);
+  box-shadow: 0 5px 14px rgba(194,24,91,.24);
+}
+.sidebar-footer { border-top-color: rgba(255,255,255,.14); }
+
+.topbar {
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 12px rgba(23,75,52,.045);
+}
+.topbar-title h2 { color: var(--primary); }
+.current-date { background: #EFF6F0; color: #426653; }
+
+.stat-card, .card {
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+.stat-card { border-radius: 14px; }
+.stat-card:hover { box-shadow: var(--shadow-md); }
+.stat-icon.green, .stat-icon.teal {
+  background: #E3F3E9;
+  color: #176B45;
+}
+.stat-icon.blue { background: #E4F1F6; color: #147D91; }
+.stat-icon.orange { background: #FFF2D8; color: #A86B0A; }
+.stat-icon.red { background: #FCE8ED; color: #B91C50; }
+.stat-icon.purple { background: #F4E8EF; color: #A51D58; }
+
+.card { border-radius: 14px; }
+.card-header { background: linear-gradient(180deg, #FFFFFF, #FBFDFC); }
+.card-header h3 { color: var(--primary); }
+
+.btn { border-radius: 9px; }
+.btn-primary {
+  background: linear-gradient(110deg, #176B45, #21865A);
+  box-shadow: 0 2px 6px rgba(23,107,69,.12);
+}
+.btn-primary:hover { background: #104B34; }
+.btn-accent {
+  background: linear-gradient(110deg, #C2185B, #D93678);
+  box-shadow: 0 2px 6px rgba(194,24,91,.13);
+}
+.btn-accent:hover { background: #A9154E; }
+.btn-success { background: #218653; }
+.btn-outline { border-color: #D6E3D9; }
+.btn-outline:hover { background: #F1F7F2; border-color: #A9C8B2; }
+
+thead { background: #EFF6F0; }
+th { color: #4C6C58; border-bottom-color: #DCE9DF; }
+td { border-bottom-color: #EAF0EB; }
+tbody tr:hover { background: #F5FAF6; }
+
+.badge-in, .badge-ok { background: #E3F3E9; color: #176B45; }
+.badge-out { background: #FCE8ED; color: #B91C50; }
+.badge-low { background: #FFF2D8; color: #98600A; }
+
+.form-control { border-color: #D8E4DB; border-radius: 9px; }
+.form-control:focus {
+  border-color: #21865A;
+  box-shadow: 0 0 0 3px rgba(33,134,90,.13);
+}
+
+.login-screen {
+  background:
+    radial-gradient(circle at 15% 15%, rgba(243,199,91,.22), transparent 28%),
+    radial-gradient(circle at 85% 85%, rgba(194,24,91,.20), transparent 30%),
+    linear-gradient(135deg, #104B34 0%, #176B45 58%, #0D5840 100%);
+}
+.login-card {
+  border: 1px solid rgba(255,255,255,.65);
+  box-shadow: 0 24px 65px rgba(8,45,30,.30);
+}
+.login-logo {
+  background: linear-gradient(140deg, #176B45, #104B34);
+  color: #F3C75B;
+  box-shadow: 0 7px 18px rgba(23,107,69,.20);
+}
+.login-card h1 { color: #176B45; }
+
+.icon-btn { border-color: #DCE8DF; color: #176B45; }
+.icon-btn:hover { background: #F1F7F2; }
+.notif-head { background: #F2F7F3; }
+.notif-item.unread { background: #F0F8F2; }
+.chip { background: #FCEEF3; color: #A9154E; border-color: #F2C8D8; }
+.bulk-footer { background: #F0F8F2; border-color: #C9E3D0; }
+.bulk-summary i { color: #176B45; }
+.low-stock { background: #FFF8E9 !important; }
+
+@media (max-width: 900px) {
+  .sidebar { box-shadow: 12px 0 34px rgba(8,45,30,.24); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
