@@ -127,13 +127,24 @@ const APP = {
     if (key === 'items' || key === 'branches') {
       const table = key;
       const previous = key === 'items' ? this._items : this._branches;
-      const rows = data.map(x => key === 'items'
-        ? { ...(x._dbId ? { id: x._dbId } : {}), code:x.code, name:x.name, category:x.category || null,
+      const toRow = x => key === 'items'
+        ? { code:x.code, name:x.name, category:x.category || null,
             unit:x.unit, reorder_level:Number(x.reorderLevel || 0), description:x.description || '', is_active:true }
-        : { ...(x._dbId ? { id: x._dbId } : {}), code:x.code, name:x.name, address:x.address || '',
-            phone:x.contact || '', is_active:true });
-      const { error } = rows.length ? await sbClient.from(table).upsert(rows, { onConflict:'id' }) : { error:null };
-      if (error) throw error;
+        : { code:x.code, name:x.name, address:x.address || '',
+            phone:x.contact || '', is_active:true };
+
+      // Keep UUID generation in PostgreSQL: INSERT new rows without an id.
+      // Do not bulk-upsert mixed rows because omitted UUIDs can be sent as NULL.
+      const existing = data.filter(x => x._dbId);
+      const fresh = data.filter(x => !x._dbId);
+      for (const x of existing) {
+        const { error } = await sbClient.from(table).update(toRow(x)).eq('id', x._dbId);
+        if (error) throw error;
+      }
+      if (fresh.length) {
+        const { error } = await sbClient.from(table).insert(fresh.map(toRow));
+        if (error) throw error;
+      }
       const keep = new Set(data.map(x => x._dbId).filter(Boolean));
       const removed = previous.filter(x => x._dbId && !keep.has(x._dbId)).map(x => x._dbId);
       if (removed.length) {
