@@ -290,8 +290,7 @@ Object.assign(APP, {
   },
 
   // ========== SAVE VOUCHER ==========
-  commitVoucher(d) {
-    const vouchers = this.getVouchers();
+  async commitVoucher(d) {
     const items = this.getItems();
     if (d.type === 'out') {
       const sm = this.stockMap();
@@ -302,34 +301,48 @@ Object.assign(APP, {
     const year = d.date.slice(0, 4);
     const ck = d.type + year;
     const seq = (st.counters[ck] || 0) + 1;
-    st.counters[ck] = seq;
-
-    const v = {
-      id: this.generateId(vouchers), no: this.formatNo(d.type, year, seq), type: d.type, date: d.date,
-      branchId: d.branchId || null, source: d.source || '', reference: d.reference || '', remarks: d.remarks || '',
-      lines: d.lines, status: 'active', createdAt: new Date().toISOString(), createdBy: this.user.username
+    const no = this.formatNo(d.type, year, seq);
+    const branch = d.branchId ? this.getBranches().find(b => b.id === d.branchId) : null;
+    const payload = {
+      p_document_no:no,
+      p_document_type:d.type === 'in' ? 'receipt' : 'issue',
+      p_document_date:d.date,
+      p_branch_id:branch?._dbId || null,
+      p_source_name:d.source || '',
+      p_reference_no:d.reference || '',
+      p_remarks:d.remarks || '',
+      p_lines:d.lines.map(line => {
+        const item = items.find(x => x.id === line.itemId);
+        if (!item?._dbId) throw new Error('আইটেমের Database ID পাওয়া যায়নি');
+        return { item_id:item._dbId, quantity:line.qty };
+      })
     };
-    vouchers.push(v);
-    this.save('vouchers', vouchers);
-    this.saveSettings(st);
-
-    const total = v.lines.reduce((s, l) => s + l.qty, 0);
-    if (v.type === 'in') {
-      this.notify('success', 'স্টক ইন সম্পন্ন', `${v.no} — ${v.lines.length} টি আইটেম, মোট ${total}।`, v.id);
-    } else {
-      const br = this.getBranches().find((b) => b.id === v.branchId);
-      this.notify('success', 'ডিস্ট্রিবিউশন সম্পন্ন', `${br?.name || 'শাখা'} — ${v.no}, ${v.lines.length} টি আইটেম, মোট ${total}।`, v.id);
-      const sm = this.stockMap();
-      const low = v.lines.map((l) => items.find((i) => i.id === l.itemId))
-        .filter((i) => i && (i.reorderLevel || 0) > 0 && (sm[i.id] || 0) <= i.reorderLevel);
-      if (low.length) {
-        this.notify('warning', 'লো স্টক সতর্কতা',
+    try {
+      const { data, error } = await sbClient.rpc('create_inventory_voucher', payload);
+      if (error) throw error;
+      st.counters[ck] = seq;
+      await this.saveSettings(st);
+      await this.loadCloudData();
+      const v = this.getVouchers().find(x => x._dbId === data);
+      if (!v) throw new Error('চালান সেভ হয়েছে, কিন্তু রিফ্রেশ করে পাওয়া যায়নি');
+      const total = v.lines.reduce((s, l) => s + l.qty, 0);
+      if (v.type === 'in') {
+        this.notify('success', 'স্টক ইন সম্পন্ন', `${v.no} — ${v.lines.length} টি আইটেম, মোট ${total}।`, v.id);
+      } else {
+        this.notify('success', 'ডিস্ট্রিবিউশন সম্পন্ন', `${branch?.name || 'শাখা'} — ${v.no}, ${v.lines.length} টি আইটেম, মোট ${total}।`, v.id);
+        const sm = this.stockMap();
+        const low = v.lines.map((l) => items.find((i) => i.id === l.itemId))
+          .filter((i) => i && (i.reorderLevel || 0) > 0 && (sm[i.id] || 0) <= i.reorderLevel);
+        if (low.length) this.notify('warning', 'লো স্টক সতর্কতা',
           low.slice(0, 5).map((i) => `${i.name} (বাকি ${sm[i.id] || 0})`).join(', ') + (low.length > 5 ? ` ... আরও ${low.length - 5} টি` : ''));
       }
+      this.showToast(`${v.type === 'in' ? 'স্টক ইন' : 'ডিস্ট্রিবিউশন'} সফল! নং: ${v.no}`);
+      this.navigate(v.type === 'in' ? 'stock-in' : 'stock-out');
+      this.previewVoucher(v.id);
+    } catch (error) {
+      console.error('Inventory voucher save failed:', error);
+      this.showToast(error.message || 'Supabase-এ চালান সেভ করা যায়নি', 'error');
     }
-    this.showToast(`${v.type === 'in' ? 'স্টক ইন' : 'ডিস্ট্রিবিউশন'} সফল! নং: ${v.no}`);
-    this.navigate(v.type === 'in' ? 'stock-in' : 'stock-out');
-    this.previewVoucher(v.id);
   },
 
   recentVouchersTable(type) {
@@ -460,27 +473,25 @@ Object.assign(APP, {
           </div></div></div>`;
   },
 
-  cancelVoucher(e, id) {
+  async cancelVoucher(e, id) {
     e.preventDefault();
     const reason = e.target.reason.value.trim();
-    const vouchers = this.getVouchers();
-    const v = vouchers.find((x) => x.id === id);
+    const v = this.getVouchers().find((x) => x.id === id);
     if (!v || v.status === 'cancelled' || !reason) return;
-    if (v.type === 'in') {
-      const sm = this.stockMap();
-      const items = this.getItems();
-      const short = v.lines.filter((l) => (sm[l.itemId] || 0) - l.qty < 0);
-      if (short.length) {
-        this.showToast('বাতিল করা যাবে না, স্টক ঋণাত্মক হবে: ' + short.map((l) => items.find((i) => i.id === l.itemId)?.name).join(', '), 'error');
-        return;
-      }
+    try {
+      const { error } = await sbClient.rpc('cancel_inventory_voucher', {
+        p_document_id:v._dbId, p_reason:reason
+      });
+      if (error) throw error;
+      await this.loadCloudData();
+      this.notify('danger', 'চালান বাতিল', `${v.no} বাতিল করা হয়েছে। কারণ: ${reason}`, v.id);
+      this.showToast('চালান বাতিল হয়েছে');
+      this.closeModal();
+      this.navigate('transactions');
+    } catch (error) {
+      console.error('Voucher cancellation failed:', error);
+      this.showToast(error.message || 'চালান বাতিল করা যায়নি', 'error');
     }
-    v.status = 'cancelled'; v.cancelReason = reason; v.cancelledAt = new Date().toISOString(); v.cancelledBy = this.user.username;
-    this.save('vouchers', vouchers);
-    this.notify('danger', 'চালান বাতিল', `${v.no} বাতিল করা হয়েছে। কারণ: ${reason}`, v.id);
-    this.showToast('চালান বাতিল হয়েছে');
-    this.closeModal();
-    this.navigate('transactions');
   },
 
   // ========== RECEIPT ==========
