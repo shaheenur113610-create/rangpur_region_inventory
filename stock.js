@@ -352,14 +352,20 @@ Object.assign(APP, {
     if (!list.length) return '<div class="empty-state" style="padding:30px"><i class="fas fa-inbox"></i><h4>কোনো রেকর্ড নেই</h4></div>';
     const branches = this.getBranches();
     return `<div class="table-wrapper"><table>
-      <thead><tr><th>তারিখ</th><th>চালান নং</th>${type === 'out' ? '<th>শাখা</th>' : '<th>উৎস</th>'}<th>আইটেম</th><th>মোট</th><th></th></tr></thead>
-      <tbody>${list.map((v) => `
-        <tr class="${v.status === 'cancelled' ? 'tx-cancelled' : ''}">
-          <td>${this.formatDate(v.date)}</td><td><code>${esc(v.no)}</code></td>
+      <thead><tr><th>তারিখ</th><th>চালান নং</th>${type === 'out' ? '<th>শাখা</th>' : '<th>উৎস</th>'}<th>আইটেম</th><th>মোট</th><th>অ্যাকশন</th></tr></thead>
+      <tbody>${list.map((v) => {
+        const cancelled = v.status === 'cancelled';
+        return `
+        <tr class="${cancelled ? 'tx-cancelled' : ''}">
+          <td>${this.formatDate(v.date)}</td><td><code>${esc(v.no)}</code>${cancelled ? ' <span class="badge badge-cancel">বাতিল</span>' : ''}</td>
           <td>${type === 'out' ? esc(branches.find((b) => b.id === v.branchId)?.name || '-') : esc(v.source || '-')}</td>
-          <td>${v.lines.length}</td><td><strong>${v.lines.reduce((s, l) => s + l.qty, 0)}</strong></td>
-          <td><button class="btn btn-outline btn-sm" onclick="APP.previewVoucher(${v.id})"><i class="fas fa-print"></i> প্রিন্ট</button></td>
-        </tr>`).join('')}</tbody></table></div>`;
+          <td>${v.lines.length}</td><td><strong>${v.lines.reduce((sum, line) => sum + line.qty, 0)}</strong></td>
+          <td class="nowrap">
+            <button class="btn btn-outline btn-sm" onclick="APP.previewVoucher(${v.id})"><i class="fas fa-print"></i> প্রিন্ট</button>
+            ${cancelled ? '' : `<button class="btn btn-outline btn-sm" style="color:var(--danger)" title="ভুল এন্ট্রি বাতিল করুন" onclick="APP.openCancelModal(${v.id})"><i class="fas fa-ban"></i> বাতিল</button>`}
+          </td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`;
   },
 
   // ========== TRANSACTION HISTORY ==========
