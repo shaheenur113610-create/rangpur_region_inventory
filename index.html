@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rangpur Region Office - Inventory Management System</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ================= LOGIN ================= -->
+  <div id="loginScreen" class="login-screen hidden">
+    <div class="login-card">
+      <div class="login-logo"><i class="fas fa-boxes-stacked"></i></div>
+      <h1>Rangpur Region Office</h1>
+      <p class="login-sub">Inventory Management System</p>
+
+      <form id="loginForm" onsubmit="APP.doLogin(event)" autocomplete="on">
+        <div class="form-group">
+          <label>ইউজারনেম</label>
+          <div class="input-icon"><i class="fas fa-user"></i>
+            <input type="text" class="form-control" name="username" autocomplete="username" required></div>
+        </div>
+        <div class="form-group">
+          <label>পাসওয়ার্ড</label>
+          <div class="input-icon"><i class="fas fa-lock"></i>
+            <input type="password" class="form-control" name="password" autocomplete="current-password" required>
+            <button type="button" class="eye-btn" tabindex="-1" onclick="APP.togglePw(this)"><i class="fas fa-eye"></i></button></div>
+        </div>
+        <label class="check-inline"><input type="checkbox" name="remember"> এই কম্পিউটারে লগইন মনে রাখুন</label>
+        <div class="login-error" id="loginError"></div>
+        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-right-to-bracket"></i> লগইন</button>
+      </form>
+      <div class="login-hint hidden" id="loginHint">
+        <i class="fas fa-circle-info"></i> প্রথমবার: ইউজারনেম <b>admin</b>, পাসওয়ার্ড <b>admin123</b>.
+        লগইনের পর সেটিংস থেকে পাসওয়ার্ড বদলে নিন।
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= APP ================= -->
+  <div class="app hidden" id="appRoot">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <i class="fas fa-boxes-stacked"></i>
+          <div>
+            <h1>Rangpur Region</h1>
+            <span>Inventory System</span>
+          </div>
+        </div>
+        <button class="sidebar-close" id="sidebarClose"><i class="fas fa-times"></i></button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-page="dashboard"><i class="fas fa-chart-pie"></i><span>ড্যাশবোর্ড</span></a>
+        <a href="#" class="nav-item" data-page="items"><i class="fas fa-box"></i><span>আইটেম মাস্টার</span></a>
+        <a href="#" class="nav-item" data-page="branches"><i class="fas fa-code-branch"></i><span>শাখা মাস্টার</span></a>
+        <a href="#" class="nav-item" data-page="stock-in"><i class="fas fa-arrow-down"></i><span>স্টক ইন</span></a>
+        <a href="#" class="nav-item" data-page="stock-out"><i class="fas fa-arrow-up"></i><span>স্টক আউট / ডিস্ট্রিবিউশন</span></a>
+        <a href="#" class="nav-item" data-page="transactions"><i class="fas fa-exchange-alt"></i><span>ট্রানজেকশন হিস্টরি</span></a>
+        <a href="#" class="nav-item" data-page="reports"><i class="fas fa-file-alt"></i><span>রিপোর্টস</span></a>
+        <a href="#" class="nav-item" data-page="settings"><i class="fas fa-gear"></i><span>সেটিংস</span></a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <i class="fas fa-user-circle"></i>
+          <div>
+            <strong id="userName">Region Admin</strong>
+            <small>Rangpur Region Office</small>
+          </div>
+        </div>
+        <button class="logout-btn" onclick="APP.logout()" title="লগআউট"><i class="fas fa-right-from-bracket"></i> লগআউট</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle"><i class="fas fa-bars"></i></button>
+        <div class="topbar-title">
+          <h2 id="pageTitle">ড্যাশবোর্ড</h2>
+          <p id="pageSubtitle">Rangpur Region Office Inventory Overview</p>
+        </div>
+        <div class="topbar-actions">
+          <div class="current-date" id="currentDate"></div>
+
+          <!-- Notification bar -->
+          <div class="notif-wrap">
+            <button class="icon-btn" id="notifBtn" onclick="APP.toggleNotifPanel()" title="নোটিফিকেশন">
+              <i class="fas fa-bell"></i><span class="notif-badge hidden" id="notifBadge">0</span>
+            </button>
+            <div class="notif-panel hidden" id="notifPanel"></div>
+          </div>
+
+          <button class="btn btn-outline btn-sm" onclick="APP.exportData()"><i class="fas fa-download"></i> Backup</button>
+        </div>
+      </header>
+
+      <div class="content" id="content"></div>
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Modal Container -->
+  <div id="modalContainer"></div>
+
+  <!-- Print area (receipts / reports are rendered here when printing) -->
+  <div id="printArea"></div>
+
+  <script src="js/core.js"></script>
+  <script src="js/master.js"></script>
+  <script src="js/stock.js"></script>
+  <script src="js/extra.js"></script>
+</body>
+</html>
