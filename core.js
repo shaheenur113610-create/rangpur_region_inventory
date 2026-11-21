@@ -91,21 +91,94 @@ const APP = {
     counters: {}
   },
 
-  // ========== STORAGE HELPERS ==========
+  // ========== SUPABASE DATA LAYER ==========
+  _items: [], _branches: [], _vouchers: [], _settings: null,
+  _branchLocationById: {}, _regionalLocationId: null,
   load(key, def) {
     try {
       const raw = localStorage.getItem(this.K[key]);
       return raw === null ? def : JSON.parse(raw);
     } catch (e) { return def; }
   },
-  save(key, data) { localStorage.setItem(this.K[key], JSON.stringify(data)); },
   has(key) { return localStorage.getItem(this.K[key]) !== null; },
-
-  getItems() { return this.load('items', []); },
-  getBranches() { return this.load('branches', []); },
-  getVouchers() { return this.load('vouchers', []); },
-  getSettings() { return { ...this.DEFAULT_SETTINGS, ...this.load('settings', {}) }; },
-  saveSettings(s) { this.save('settings', s); },
+  async save(key, data) {
+    if (key === 'notifs' || key === 'auth') {
+      localStorage.setItem(this.K[key], JSON.stringify(data));
+      return;
+    }
+    if (key === 'items' || key === 'branches') {
+      const table = key;
+      const previous = key === 'items' ? this._items : this._branches;
+      const rows = data.map(x => key === 'items'
+        ? { ...(x._dbId ? { id: x._dbId } : {}), code:x.code, name:x.name, category:x.category || null,
+            unit:x.unit, reorder_level:Number(x.reorderLevel || 0), description:x.description || '', is_active:true }
+        : { ...(x._dbId ? { id: x._dbId } : {}), code:x.code, name:x.name, address:x.address || '',
+            phone:x.contact || '', is_active:true });
+      const { error } = await sbClient.from(table).upsert(rows, { onConflict:'code' });
+      if (error) throw error;
+      const keep = new Set(data.map(x => x._dbId).filter(Boolean));
+      const removed = previous.filter(x => x._dbId && !keep.has(x._dbId)).map(x => x._dbId);
+      if (removed.length) {
+        const { error:de } = await sbClient.from(table).update({is_active:false}).in('id', removed);
+        if (de) throw de;
+      }
+      await this.loadCloudData();
+      return;
+    }
+    if (key === 'settings') return this.saveSettings(data);
+  },
+  getItems() { return this._items; },
+  getBranches() { return this._branches; },
+  getVouchers() { return this._vouchers; },
+  getSettings() { return { ...this.DEFAULT_SETTINGS, ...(this._settings || {}) }; },
+  async saveSettings(s) {
+    const { error } = await sbClient.from('app_settings').upsert({
+      id:true, settings:s, updated_by:this.user?.id || null, updated_at:new Date().toISOString()
+    }, { onConflict:'id' });
+    if (error) throw error;
+    this._settings = s;
+  },
+  async loadCloudData() {
+    const [ir, br, lr, dr, sr] = await Promise.all([
+      sbClient.from('items').select('*').eq('is_active',true).order('code'),
+      sbClient.from('branches').select('*').eq('is_active',true).order('code'),
+      sbClient.from('inventory_locations').select('*').eq('is_active',true),
+      sbClient.from('inventory_documents').select('*,inventory_document_lines(*)').order('document_date',{ascending:false}),
+      sbClient.from('app_settings').select('settings').eq('id',true).maybeSingle()
+    ]);
+    for (const x of [ir,br,lr,dr,sr]) if (x.error) throw x.error;
+    this._items = (ir.data || []).map((x,n) => ({
+      id:n+1,_dbId:x.id,code:x.code,name:x.name,category:x.category,unit:x.unit,
+      reorderLevel:Number(x.reorder_level || 0),description:x.description || ''
+    }));
+    this._branches = (br.data || []).map((x,n) => ({
+      id:n+1,_dbId:x.id,code:x.code,name:x.name,address:x.address || '',contact:x.phone || ''
+    }));
+    const itemIds = Object.fromEntries(this._items.map(x => [x._dbId,x.id]));
+    const branchIds = Object.fromEntries(this._branches.map(x => [x._dbId,x.id]));
+    this._branchLocationById = {};
+    this._regionalLocationId = null;
+    (lr.data || []).forEach(x => {
+      if (x.location_type === 'regional_store') this._regionalLocationId = x.id;
+      if (x.location_type === 'branch') this._branchLocationById[x.branch_id] = x.id;
+    });
+    const locationsById = Object.fromEntries((lr.data || []).map(x => [x.id,x]));
+    this._vouchers = (dr.data || []).map((d,n) => {
+      const loc = locationsById[d.destination_location_id] || locationsById[d.source_location_id];
+      const branchId = loc?.branch_id ? branchIds[loc.branch_id] : null;
+      return {
+        id:n+1,_dbId:d.id,no:d.document_no,type:d.document_type === 'receipt' ? 'in' : 'out',
+        date:d.document_date,branchId,source:d.source_name || '',reference:d.reference_no || '',
+        remarks:d.remarks || '',status:d.status === 'cancelled' ? 'cancelled' : 'active',
+        createdAt:d.created_at,createdBy:d.created_by,
+        cancelReason:d.cancellation_reason || '',cancelledAt:d.cancelled_at,
+        lines:(d.inventory_document_lines || []).map(line => ({
+          itemId:itemIds[line.item_id],qty:Number(line.quantity),_dbItemId:line.item_id
+        })).filter(line => line.itemId)
+      };
+    });
+    this._settings = sr.data?.settings || this.DEFAULT_SETTINGS;
+  },
 
   generateId(list) {
     if (!list || list.length === 0) return 1;
@@ -270,54 +343,58 @@ const APP = {
   },
   hashPw(pw, salt) { return this.sha256(salt + '|' + pw); },
 
-  // ========== AUTH ==========
-  initAuth() {
-    let a = this.load('auth', null);
-    if (!a) {
-      const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      a = { username: 'admin', name: 'Region Admin', salt, hash: this.hashPw('admin123', salt), isDefault: true };
-      this.save('auth', a);
+  // ========== SUPABASE AUTH ==========
+  async loadProfile(user) {
+    const { data, error } = await sbClient.from('user_profiles')
+      .select('id,full_name,role,is_active').eq('id',user.id).maybeSingle();
+    if (error) throw error;
+    if (!data || !data.is_active || !['regional_admin','store_manager'].includes(data.role)) {
+      await sbClient.auth.signOut();
+      throw new Error('এই অ্যাকাউন্টের Inventory System ব্যবহারের অনুমতি নেই।');
     }
-    return a;
+    this.user = { id:user.id, email:user.email, username:user.email, name:data.full_name || user.email, role:data.role };
+    await this.loadCloudData();
   },
-
+  async initCloud() {
+    this.showLogin();
+    try {
+      const { data, error } = await sbClient.auth.getSession();
+      if (error) throw error;
+      if (data.session?.user) {
+        await this.loadProfile(data.session.user);
+        this.enterApp(false);
+      }
+    } catch (e) {
+      console.error('Supabase session restore failed:', e);
+      this.showLogin();
+    }
+  },
   showLogin() {
     document.getElementById('appRoot').classList.add('hidden');
     document.getElementById('loginScreen').classList.remove('hidden');
-    const a = this.load('auth');
-    document.getElementById('loginHint').classList.toggle('hidden', !(a && a.isDefault));
     const f = document.getElementById('loginForm');
     f.password.value = '';
     document.getElementById('loginError').textContent = '';
-    setTimeout(() => f.username.focus(), 50);
+    setTimeout(() => f.email.focus(), 50);
   },
-
-  doLogin(e) {
+  async doLogin(e) {
     e.preventDefault();
     const f = e.target;
     const err = document.getElementById('loginError');
-    const lockUntil = Number(sessionStorage.getItem('rri2_lock') || 0);
-    if (Date.now() < lockUntil) {
-      err.textContent = `অনেকবার ভুল চেষ্টা হয়েছে। ${Math.ceil((lockUntil - Date.now()) / 1000)} সেকেন্ড পর আবার চেষ্টা করুন।`;
-      return;
-    }
-    const a = this.load('auth');
-    const u = f.username.value.trim().toLowerCase();
-    if (u === a.username.toLowerCase() && this.hashPw(f.password.value, a.salt) === a.hash) {
-      this._fails = 0;
-      (f.remember.checked ? localStorage : sessionStorage).setItem(this.SESSION_KEY, a.username);
-      this.user = a;
+    const btn = f.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    err.textContent = 'লগইন যাচাই করা হচ্ছে...';
+    try {
+      const { data, error } = await sbClient.auth.signInWithPassword({
+        email:f.email.value.trim(), password:f.password.value
+      });
+      if (error) throw error;
+      await this.loadProfile(data.user);
       this.enterApp(true);
-    } else {
-      this._fails++;
-      if (this._fails >= 5) {
-        sessionStorage.setItem('rri2_lock', String(Date.now() + 30000));
-        this._fails = 0;
-        err.textContent = 'পরপর ৫ বার ভুল! ৩০ সেকেন্ড অপেক্ষা করুন।';
-      } else {
-        err.textContent = 'ইউজারনেম বা পাসওয়ার্ড ভুল হয়েছে।';
-      }
-    }
+    } catch (error) {
+      err.textContent = error.message || 'ইমেইল বা পাসওয়ার্ড সঠিক নয়।';
+      await sbClient.auth.signOut();
+    } finally { btn.disabled = false; }
   },
 
   togglePw(btn) {
@@ -327,10 +404,10 @@ const APP = {
     btn.innerHTML = `<i class="fas fa-eye${show ? '-slash' : ''}"></i>`;
   },
 
-  logout() {
-    sessionStorage.removeItem(this.SESSION_KEY);
-    localStorage.removeItem(this.SESSION_KEY);
+  async logout() {
+    await sbClient.auth.signOut();
     this.user = null;
+    this._items = []; this._branches = []; this._vouchers = []; this._settings = null;
     this.closeModal();
     this.closeNotifPanel();
     document.getElementById('content').innerHTML = '';
@@ -340,7 +417,7 @@ const APP = {
   enterApp(fresh) {
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('appRoot').classList.remove('hidden');
-    document.getElementById('userName').textContent = this.user.name || this.user.username;
+    document.getElementById('userName').textContent = this.user.name || this.user.email || this.user.username;
     if (fresh) {
       this.notify('info', 'লগইন সফল', `${this.user.name || this.user.username} সিস্টেমে লগইন করেছেন।`);
       const low = this.getAllStock().filter((i) => this.isLow(i));
@@ -426,18 +503,11 @@ const APP = {
 
   // ========== INIT & NAVIGATION ==========
   init() {
-    if (!this.has('items')) this.save('items', this.buildDefaultItems());
-    if (!this.has('branches')) this.save('branches', this.buildDefaultBranches());
-    if (!this.has('vouchers')) this.save('vouchers', []);
-    const auth = this.initAuth();
-
     this.bindEvents();
     const el = document.getElementById('currentDate');
     if (el) el.textContent = new Date().toLocaleDateString('bn-BD', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-    const sess = sessionStorage.getItem(this.SESSION_KEY) || localStorage.getItem(this.SESSION_KEY);
-    if (sess && sess === auth.username) { this.user = auth; this.enterApp(false); }
-    else this.showLogin();
+    this.initCloud();
   },
 
   bindEvents() {
