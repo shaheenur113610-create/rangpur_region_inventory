@@ -362,7 +362,7 @@ Object.assign(APP, {
           <td>${v.lines.length}</td><td><strong>${v.lines.reduce((sum, line) => sum + line.qty, 0)}</strong></td>
           <td class="nowrap">
             <button class="btn btn-outline btn-sm" onclick="APP.previewVoucher(${v.id})"><i class="fas fa-print"></i> প্রিন্ট</button>
-            ${cancelled ? '' : `<button class="btn btn-outline btn-sm" style="color:var(--danger)" title="ভুল এন্ট্রি বাতিল করুন" onclick="APP.openCancelModal(${v.id})"><i class="fas fa-ban"></i> বাতিল</button>`}
+            ${cancelled ? '' : `<button class="btn btn-outline btn-sm" style="color:var(--info)" title="ভুল এন্ট্রি সংশোধন করুন" onclick="APP.openCorrectionModal(${v.id})"><i class="fas fa-edit"></i> সংশোধন</button><button class="btn btn-outline btn-sm" style="color:var(--danger)" title="ভুল এন্ট্রি বাতিল করুন" onclick="APP.openCancelModal(${v.id})"><i class="fas fa-ban"></i> বাতিল</button>`}
           </td>
         </tr>`;
       }).join('')}</tbody></table></div>`;
@@ -449,7 +449,7 @@ Object.assign(APP, {
             <td>${esc(v.reference || '-')}</td>
             <td class="nowrap">
               <button class="btn btn-accent btn-sm" onclick="APP.previewVoucher(${v.id})"><i class="fas fa-print"></i> প্রিন্ট</button>
-              ${cancelled ? '' : `<button class="btn btn-outline btn-icon" title="বাতিল করুন" style="color:var(--danger)" onclick="APP.openCancelModal(${v.id})"><i class="fas fa-ban"></i></button>`}
+              ${cancelled ? '' : `<button class="btn btn-outline btn-sm" title="সংশোধন করুন" style="color:var(--info)" onclick="APP.openCorrectionModal(${v.id})"><i class="fas fa-edit"></i> সংশোধন</button><button class="btn btn-outline btn-icon" title="বাতিল করুন" style="color:var(--danger)" onclick="APP.openCancelModal(${v.id})"><i class="fas fa-ban"></i></button>`}
             </td>
           </tr>`;
         }).join('')}</tbody></table></div>
@@ -457,6 +457,97 @@ Object.assign(APP, {
         <button class="btn btn-outline btn-sm" ${t.page === 1 ? 'disabled' : ''} onclick="APP.txPage(${t.page - 1})">&laquo; আগের</button>
         <span>পৃষ্ঠা ${t.page} / ${pages}</span>
         <button class="btn btn-outline btn-sm" ${t.page === pages ? 'disabled' : ''} onclick="APP.txPage(${t.page + 1})">পরের &raquo;</button></div>` : ''}`;
+  },
+
+  // ========== CORRECT VOUCHER ==========
+  openCorrectionModal(id) {
+    const v = this.getVouchers().find((x) => x.id === id);
+    if (!v || v.status === 'cancelled') return;
+    const items = this.getItems();
+    const branches = [...this.getBranches()].sort((a,b) => a.code.localeCompare(b.code));
+    const oldQty = Object.fromEntries(v.lines.map((line) => [line.itemId, line.qty]));
+    const itemRows = items.map((it,n) => (
+      '<tr><td>'+(n+1)+'</td><td><code>'+esc(it.code)+'</code></td><td>'+esc(it.name)+'</td><td>'+esc(it.unit)+'</td>' +
+      '<td><input class="form-control correction-qty" type="number" min="0" step="1" data-item-db-id="'+esc(it._dbId || '')+'" data-item-id="'+it.id+'" value="'+(oldQty[it.id] || '')+'" placeholder="0" style="min-width:90px"></td></tr>'
+    )).join('');
+    const branchField = v.type === 'out'
+      ? '<div class="form-group"><label>শাখা <span class="required">*</span></label><select class="form-control" name="branchId" required><option value="">শাখা নির্বাচন করুন</option>' +
+        branches.map((b) => '<option value="'+b.id+'" '+(b.id===v.branchId?'selected':'')+'>'+esc(b.code)+' - '+esc(b.name)+'</option>').join('') +
+        '</select></div>' : '';
+    const sourceField = v.type === 'in'
+      ? '<div class="form-group"><label>প্রাপ্তির উৎস <span class="required">*</span></label><input class="form-control" name="source" value="'+esc(v.source || '')+'" required></div>' : '';
+    document.getElementById('modalContainer').innerHTML =
+      '<div class="modal-overlay" onclick="if(event.target===this)APP.closeModal()"><div class="modal modal-lg">' +
+      '<div class="modal-header"><h3><i class="fas fa-edit"></i> '+(v.type==='in'?'Stock In':'Stock Out')+' সংশোধন — '+esc(v.no)+'</h3>' +
+      '<button class="modal-close" onclick="APP.closeModal()"><i class="fas fa-times"></i></button></div><div class="modal-body">' +
+      '<div class="alert alert-warning" style="margin-bottom:14px">সংশোধন করলে পুরোনো ভাউচারটি বাতিল হিসেবে সংরক্ষিত থাকবে এবং নতুন সংশোধিত ভাউচার তৈরি হবে। স্টক একবারেই সমন্বয় হবে।</div>' +
+      '<form id="correctionForm" onsubmit="APP.submitVoucherCorrection(event,'+id+')"><div class="form-grid">' +
+      '<div class="form-group"><label>তারিখ <span class="required">*</span></label><input type="date" class="form-control" name="date" value="'+esc(v.date)+'" required></div>' +
+      branchField+sourceField +
+      '<div class="form-group"><label>রেফারেন্স / মেমো নং</label><input class="form-control" name="reference" value="'+esc(v.reference || '')+'"></div>' +
+      '<div class="form-group"><label>মন্তব্য</label><input class="form-control" name="remarks" value="'+esc(v.remarks || '')+'"></div></div>' +
+      '<div class="form-group"><label>আইটেম ও সংশোধিত পরিমাণ</label><div class="table-wrapper" style="max-height:42vh;overflow:auto"><table class="mini-table">' +
+      '<thead><tr><th>#</th><th>কোড</th><th>আইটেম</th><th>ইউনিট</th><th>সংশোধিত পরিমাণ</th></tr></thead><tbody>'+itemRows+'</tbody></table></div>' +
+      '<small class="muted">যে আইটেম বাদ দিতে চান তার পরিমাণ ০ বা খালি রাখুন। নতুন আইটেমের পরিমাণও এখানে যোগ করতে পারবেন।</small></div>' +
+      '<div class="form-group"><label>সংশোধনের কারণ <span class="required">*</span></label><textarea class="form-control" name="reason" rows="2" required placeholder="যেমন: ভুল পরিমাণ এন্ট্রি হয়েছিল"></textarea></div>' +
+      '<div class="form-actions"><button type="button" class="btn btn-outline" onclick="APP.closeModal()">বন্ধ</button><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> সংশোধন সংরক্ষণ</button></div></form>' +
+      '</div></div></div>';
+  },
+
+  async submitVoucherCorrection(e, id) {
+    e.preventDefault();
+    const f = e.target;
+    const original = this.getVouchers().find((v) => v.id === id);
+    if (!original || original.status === 'cancelled') return;
+    const lines = [];
+    for (const input of f.querySelectorAll('.correction-qty')) {
+      const raw = input.value.trim();
+      if (!raw || Number(raw) === 0) continue;
+      const qty = Number(raw);
+      if (!Number.isInteger(qty) || qty < 0) {
+        this.showToast('প্রতিটি পরিমাণ পূর্ণসংখ্যা হতে হবে', 'error'); input.focus(); return;
+      }
+      if (!input.dataset.itemDbId) {
+        this.showToast('একটি আইটেমের Database ID পাওয়া যায়নি', 'error'); return;
+      }
+      lines.push({ item_id:input.dataset.itemDbId, quantity:qty });
+    }
+    if (!lines.length) { this.showToast('কমপক্ষে একটি আইটেমের পরিমাণ দিতে হবে', 'error'); return; }
+    const branch = original.type === 'out'
+      ? this.getBranches().find((b) => b.id === Number(f.branchId.value)) : null;
+    if (original.type === 'out' && !branch) { this.showToast('শাখা নির্বাচন করুন', 'error'); return; }
+    const st = this.getSettings();
+    const year = f.date.value.slice(0,4);
+    const key = original.type + year;
+    const seq = (st.counters[key] || 0) + 1;
+    const no = this.formatNo(original.type, year, seq);
+    const payload = {
+      p_original_document_id:original._dbId,
+      p_new_document_no:no,
+      p_document_date:f.date.value,
+      p_branch_id:branch ? branch._dbId : null,
+      p_source_name:original.type === 'in' ? f.source.value.trim() : '',
+      p_reference_no:f.reference.value.trim(),
+      p_remarks:f.remarks.value.trim(),
+      p_lines:lines,
+      p_reason:f.reason.value.trim()
+    };
+    try {
+      st.counters[key] = seq;
+      await this.saveSettings(st);
+      const { data, error } = await sbClient.rpc('correct_inventory_voucher', payload);
+      if (error) throw error;
+      await this.loadCloudData();
+      const corrected = this.getVouchers().find((v) => v._dbId === data);
+      this.notify('warning','ট্রানজেকশন সংশোধন',original.no+' সংশোধন করে '+(corrected ? corrected.no : no)+' তৈরি হয়েছে। কারণ: '+payload.p_reason,corrected ? corrected.id : null);
+      this.showToast('ট্রানজেকশন সংশোধন সম্পন্ন');
+      this.closeModal();
+      this.navigate('transactions');
+      if (corrected) this.previewVoucher(corrected.id);
+    } catch (error) {
+      console.error('Voucher correction failed:',error);
+      this.showToast(error.message || 'ট্রানজেকশন সংশোধন করা যায়নি','error');
+    }
   },
 
   // ========== CANCEL VOUCHER ==========
