@@ -168,8 +168,8 @@ Object.assign(APP, {
             <form onsubmit="APP.changePassword(event)">
               <div class="form-grid one">
                 <div class="form-group"><label>বর্তমান পাসওয়ার্ড</label><input type="password" class="form-control" name="old" required autocomplete="current-password"></div>
-                <div class="form-group"><label>নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)</label><input type="password" class="form-control" name="pw1" minlength="6" required autocomplete="new-password"></div>
-                <div class="form-group"><label>নতুন পাসওয়ার্ড আবার দিন</label><input type="password" class="form-control" name="pw2" minlength="6" required autocomplete="new-password"></div>
+                <div class="form-group"><label>নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)</label><input type="password" class="form-control" name="pw1" minlength="8" required autocomplete="new-password"></div>
+                <div class="form-group"><label>নতুন পাসওয়ার্ড আবার দিন</label><input type="password" class="form-control" name="pw2" minlength="8" required autocomplete="new-password"></div>
               </div>
               <div class="form-actions"><button class="btn btn-primary"><i class="fas fa-lock"></i> পাসওয়ার্ড বদলান</button></div>
             </form>
