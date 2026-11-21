@@ -180,43 +180,42 @@ Object.assign(APP, {
       <div class="card">
         <div class="card-header"><h3><i class="fas fa-database"></i> ডাটা ম্যানেজমেন্ট</h3></div>
         <div class="card-body">
-          <p class="muted mb">ডাটা এই কম্পিউটারের ব্রাউজারে সংরক্ষিত থাকে। নিয়মিত ব্যাকআপ নিন এবং অন্য কম্পিউটারে ব্যবহার করতে চাইলে রিস্টোর করুন।</p>
+          <p class="muted mb">সকল মূল তথ্য এখন Supabase Cloud Database-এ সংরক্ষিত। প্রয়োজন হলে JSON Backup ডাউনলোড করে নিরাপদে রাখুন।</p>
           <div class="form-actions" style="margin-top:0">
             <button class="btn btn-accent" onclick="APP.exportData()"><i class="fas fa-download"></i> ব্যাকআপ ডাউনলোড (JSON)</button>
-            <label class="btn btn-outline" style="cursor:pointer"><i class="fas fa-upload"></i> ব্যাকআপ রিস্টোর
-              <input type="file" accept=".json,application/json" hidden onchange="APP.importData(this)"></label>
-            <button class="btn btn-danger" onclick="APP.resetData()"><i class="fas fa-trash-can"></i> সব ডাটা রিসেট</button>
+
           </div>
         </div>
       </div>`;
   },
 
-  saveOffice(e) {
+  async saveOffice(e) {
     e.preventDefault();
     const f = e.target;
     const s = this.getSettings();
     s.orgName = f.orgName.value.trim(); s.officeName = f.officeName.value.trim(); s.prefix = f.prefix.value.trim();
-    this.saveSettings(s);
+    try { await this.saveSettings(s); } catch (error) { this.showToast(error.message || 'সেটিংস Supabase-এ সেভ হয়নি', 'error'); return; }
     this.notify('info', 'সেটিংস আপডেট', 'অফিস তথ্য ও চালান প্রিফিক্স আপডেট হয়েছে।');
     this.showToast('সেটিংস সেভ হয়েছে');
     this.navigate('settings');
   },
 
-  changePassword(e) {
+  async changePassword(e) {
     e.preventDefault();
     const f = e.target;
-    const a = this.load('auth');
-    if (this.hashPw(f.old.value, a.salt) !== a.hash) { this.showToast('বর্তমান পাসওয়ার্ড ভুল', 'error'); return; }
     if (f.pw1.value !== f.pw2.value) { this.showToast('নতুন পাসওয়ার্ড দুটি মেলেনি', 'error'); return; }
-    if (f.pw1.value.length < 6) { this.showToast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে', 'error'); return; }
-    a.salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    a.hash = this.hashPw(f.pw1.value, a.salt);
-    a.isDefault = false;
-    this.save('auth', a);
-    this.user = a;
-    this.notify('success', 'পাসওয়ার্ড পরিবর্তন', 'পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।');
-    this.showToast('পাসওয়ার্ড পরিবর্তন হয়েছে');
-    f.reset();
+    if (f.pw1.value.length < 8) { this.showToast('পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে', 'error'); return; }
+    try {
+      const { error:verifyError } = await sbClient.auth.signInWithPassword({
+        email:this.user.email, password:f.old.value
+      });
+      if (verifyError) throw new Error('বর্তমান পাসওয়ার্ড সঠিক নয়');
+      const { error } = await sbClient.auth.updateUser({ password:f.pw1.value });
+      if (error) throw error;
+      this.notify('success', 'পাসওয়ার্ড পরিবর্তন', 'পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।');
+      this.showToast('পাসওয়ার্ড পরিবর্তন হয়েছে');
+      f.reset();
+    } catch (error) { this.showToast(error.message || 'পাসওয়ার্ড পরিবর্তন করা যায়নি', 'error'); }
   },
 
   // ========== BACKUP / RESTORE / RESET ==========
