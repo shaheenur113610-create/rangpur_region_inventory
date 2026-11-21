@@ -114,7 +114,7 @@ const APP = {
             unit:x.unit, reorder_level:Number(x.reorderLevel || 0), description:x.description || '', is_active:true }
         : { ...(x._dbId ? { id: x._dbId } : {}), code:x.code, name:x.name, address:x.address || '',
             phone:x.contact || '', is_active:true });
-      const { error } = await sbClient.from(table).upsert(rows, { onConflict:'code' });
+      const { error } = rows.length ? await sbClient.from(table).upsert(rows, { onConflict:'id' }) : { error:null };
       if (error) throw error;
       const keep = new Set(data.map(x => x._dbId).filter(Boolean));
       const removed = previous.filter(x => x._dbId && !keep.has(x._dbId)).map(x => x._dbId);
