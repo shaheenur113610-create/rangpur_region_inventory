@@ -933,3 +933,145 @@ kbd { background: #e2e8f0; border-radius: 4px; padding: 1px 6px; font-size: 12px
   .rc-signs { margin-top: 38px; }
   .rc-foot { margin-top: 10px; }
 }
+
+
+/* =====================================================
+   Mobile responsive refinement - Pilot release
+   Covers dashboard, master data, stock, reports,
+   transactions, forms, tables, modals and notifications.
+   ===================================================== */
+html { -webkit-text-size-adjust: 100%; }
+img, canvas, svg { max-width: 100%; }
+button, input, select, textarea { max-width: 100%; }
+.content, .card, .card-body, .card-header, .main { min-width: 0; }
+.table-wrapper, .bulk-wrap, .receipt-preview { max-width: 100%; -webkit-overflow-scrolling: touch; }
+.table-wrapper table { min-width: 620px; }
+.bulk-wrap table { min-width: 560px; }
+.form-control { min-width: 0; }
+.form-grid > *, .stats-grid > *, .two-col > *, .three-col > * { min-width: 0; }
+.header-actions { min-width: 0; }
+.modal { overscroll-behavior: contain; }
+.notif-panel { max-height: min(75vh, 620px); }
+
+@media (max-width: 900px) {
+  .sidebar { width: min(300px, 86vw); box-shadow: 12px 0 32px rgba(15,23,42,.22); }
+  .main { width: 100%; }
+  .topbar { gap: 12px; }
+  .topbar-title { min-width: 0; flex: 1; }
+  .topbar-title h2 { font-size: 18px; line-height: 1.3; }
+  .topbar-title p { font-size: 11.5px; }
+  .topbar-actions { gap: 8px; }
+  .content { padding: 18px 14px; }
+  .card-header { padding: 15px 16px; }
+  .card-body { padding: 18px 16px; }
+  .three-col { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+}
+
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  .topbar {
+    padding: 10px 12px;
+    gap: 10px;
+    min-height: 62px;
+  }
+  .menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: #f1f5f9;
+  }
+  .topbar-title h2 { font-size: 16px; }
+  .topbar-title p { display: none; }
+  .topbar-actions { margin-left: 0; gap: 7px; }
+  .topbar-actions .current-date, .topbar-actions > .btn { display: none !important; }
+  .icon-btn { width: 38px; height: 38px; }
+  .content { padding: 13px 10px 24px; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat-card { padding: 13px 11px; gap: 9px; border-radius: 10px; }
+  .stat-icon { width: 36px; height: 36px; border-radius: 9px; font-size: 16px; }
+  .stat-info h3 { font-size: 20px; }
+  .stat-info p { font-size: 11px; line-height: 1.35; }
+  .card { margin-bottom: 15px; border-radius: 10px; }
+  .card-header { padding: 12px; align-items: flex-start; }
+  .card-header h3 { font-size: 14px; }
+  .card-body { padding: 13px 12px; }
+  .two-col, .three-col { grid-template-columns: minmax(0, 1fr); gap: 13px; }
+  .dash-scroll { max-height: 300px; }
+  .form-grid { grid-template-columns: minmax(0, 1fr) !important; gap: 13px; }
+  .form-group label { font-size: 12.5px; }
+  .form-control { min-height: 42px; padding: 10px 11px; font-size: 14px; }
+  textarea.form-control { min-height: 90px; }
+  .filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; margin-bottom: 14px; }
+  .filters .form-control, .filters select, .filters input { width: 100% !important; min-width: 0; }
+  .header-actions { width: 100%; }
+  .header-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .form-actions { gap: 8px; margin-top: 17px; }
+  .form-actions .btn { flex: 1 1 130px; justify-content: center; }
+  .btn { min-height: 40px; padding: 9px 13px; font-size: 13px; justify-content: center; }
+  .btn-sm { min-height: 36px; }
+  .bulk-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; margin-top: 14px; }
+  .bulk-toolbar .form-control { max-width: none; width: 100%; }
+  .bulk-wrap { max-height: 55vh; }
+  .bulk-row td { padding: 7px 9px; }
+  .bulk-row .qty-input { max-width: 100px; }
+  .bulk-footer { align-items: stretch; padding: 11px; gap: 10px; }
+  .bulk-summary { gap: 8px 14px; font-size: 12px; }
+  .bulk-footer .btn { width: 100%; }
+  .pager { gap: 9px; flex-wrap: wrap; }
+  .recent-list li { align-items: flex-start; }
+  .stock-row { gap: 8px; }
+  .sr-name strong { font-size: 12.5px; }
+  .sr-qty { font-size: 14px; }
+  .modal-overlay { padding: 8px; align-items: flex-end; }
+  .modal, .modal-lg, .modal-xl {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    border-radius: 16px 16px 10px 10px;
+  }
+  .modal-header { padding: 14px 16px; }
+  .modal-header h3 { font-size: 16px; }
+  .modal-body { padding: 15px 14px; }
+  .modal-footer { padding: 12px 14px; gap: 8px; flex-wrap: wrap; }
+  .modal-footer .btn { flex: 1 1 120px; }
+  .modal-footer.between { align-items: stretch; }
+  .notif-panel { position: fixed; left: 8px; right: 8px; top: 62px; width: auto; max-width: none; max-height: calc(100dvh - 76px); }
+  .notif-list { max-height: calc(100dvh - 150px); }
+  .notif-head { gap: 8px; padding: 11px 12px; }
+  .notif-head > div { display: flex; flex-wrap: wrap; gap: 5px; }
+  .link-btn { margin-left: 0; }
+  .toast { left: 12px; right: 12px; bottom: 14px; justify-content: center; padding: 12px 14px; }
+  .receipt-preview { padding: 6px; overflow-x: auto; }
+  .receipt-page { min-width: 620px; padding: 12px; }
+  .rc-stamp { font-size: 42px; border-width: 4px; }
+  .login-screen { padding: 14px; }
+  .login-card { padding: 27px 20px; border-radius: 15px; }
+  .login-card h1 { font-size: 19px; }
+}
+
+@media (max-width: 380px) {
+  .content { padding-left: 8px; padding-right: 8px; }
+  .stats-grid { gap: 8px; }
+  .stat-card { padding: 11px 9px; gap: 7px; }
+  .stat-icon { width: 32px; height: 32px; font-size: 14px; }
+  .stat-info h3 { font-size: 18px; }
+  .topbar-title h2 { font-size: 14px; }
+  .card-body { padding: 11px 9px; }
+  .btn { padding-left: 10px; padding-right: 10px; font-size: 12px; }
+}
+
+/* Tablet landscape and narrow laptop */
+@media (min-width: 641px) and (max-width: 900px) {
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Avoid accidental page-wide horizontal scrolling */
+@media (max-width: 900px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .app, .main, #content { max-width: 100%; min-width: 0; }
+}
