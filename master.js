@@ -213,7 +213,7 @@ Object.assign(APP, {
     if (form.code.dataset.auto === '1') form.code.value = this.nextCode(form.category.value);
   },
 
-  saveItem(e, id) {
+  async saveItem(e, id) {
     e.preventDefault();
     const f = e.target;
     const data = {
@@ -258,12 +258,12 @@ Object.assign(APP, {
     });
   },
 
-  restoreDefaultItems() {
+  async restoreDefaultItems() {
     const before = this.getItems();
     const after = this.buildDefaultItems(before);
     const added = after.length - before.length;
     if (!added) { this.showToast('ডিফল্ট তালিকার সব আইটেম আগে থেকেই আছে', 'info'); return; }
-    this.save('items', after);
+    try { await this.save('items', after); } catch (error) { this.showToast(error.message || 'ডিফল্ট আইটেম সেভ হয়নি', 'error'); return; }
     this.notify('info', 'ডিফল্ট আইটেম', `${added} টি ডিফল্ট আইটেম যোগ করা হয়েছে।`);
     this.showToast(`${added} টি ডিফল্ট আইটেম যোগ হয়েছে`);
     this.navigate('items');
@@ -337,7 +337,7 @@ Object.assign(APP, {
       </div>`;
   },
 
-  saveBranch(e, id) {
+  async saveBranch(e, id) {
     e.preventDefault();
     const f = e.target;
     const data = { code: f.code.value.trim(), name: f.name.value.trim(), address: f.address.value.trim(), contact: f.contact.value.trim() };
@@ -377,12 +377,12 @@ Object.assign(APP, {
     });
   },
 
-  restoreDefaultBranches() {
+  async restoreDefaultBranches() {
     const before = this.getBranches();
     const after = this.buildDefaultBranches(before);
     const added = after.length - before.length;
     if (!added) { this.showToast('ডিফল্ট শাখাগুলো আগে থেকেই আছে', 'info'); return; }
-    this.save('branches', after);
+    try { await this.save('branches', after); } catch (error) { this.showToast(error.message || 'ডিফল্ট শাখা সেভ হয়নি', 'error'); return; }
     this.notify('info', 'ডিফল্ট শাখা', `${added} টি ডিফল্ট শাখা যোগ করা হয়েছে।`);
     this.showToast(`${added} টি ডিফল্ট শাখা যোগ হয়েছে`);
     this.navigate('branches');
