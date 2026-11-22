@@ -87,6 +87,7 @@ Object.assign(APP, {
       .sort((a,b) => a.date.localeCompare(b.date) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
     let balance = 0, opening = 0, stockIn = 0, stockOut = 0;
     const branchTotals = Object.fromEntries(this.getBranches().map(b => [b.id, { branch:b, qty:0, vouchers:0 }]));
+    const otherDestinations = {};
     const rows = vouchers.map(v => {
       const line = v.lines.find(l => l.itemId === item.id);
       const qty = Number(line?.qty || 0);
@@ -112,12 +113,25 @@ Object.assign(APP, {
         if (branchTotals[v.branchId]) {
           branchTotals[v.branchId].qty += qty;
           branchTotals[v.branchId].vouchers++;
+        } else if (v.destinationLocationName) {
+          const key = v.destinationLocationName;
+          if (!otherDestinations[key]) otherDestinations[key] = { name:key, qty:0, vouchers:0 };
+          otherDestinations[key].qty += qty;
+          otherDestinations[key].vouchers++;
         }
+        if (!branchTotals[v.branchId] && !v.destinationLocationName) {
+          const key = 'অজ্ঞাত গন্তব্য';
+          if (!otherDestinations[key]) otherDestinations[key] = { name:key, qty:0, vouchers:0 };
+          otherDestinations[key].qty += qty;
+          otherDestinations[key].vouchers++;
+        }
+        party = v.destinationLocationName || party;
       }
       return { date:v.date, type, no:v.no, party, reference:v.reference || '', inQty, outQty, balance, remarks:v.remarks || '' };
     });
     return { item, rows, opening, stockIn, stockOut, closing:balance,
-      branchTotals:Object.values(branchTotals).sort((a,b)=>a.branch.code.localeCompare(b.branch.code)) };
+      branchTotals:Object.values(branchTotals).sort((a,b)=>a.branch.code.localeCompare(b.branch.code)),
+      otherDestinations:Object.values(otherDestinations).sort((a,b)=>a.name.localeCompare(b.name)) };
   },
 
   itemLedgerHTML(data) {
@@ -134,8 +148,9 @@ Object.assign(APP, {
         <div class="card-header"><h3>শাখাভিত্তিক প্রাপ্তির হিসাব</h3><span class="chip">সব শাখা</span></div>
         <div class="card-body"><div class="table-wrapper">
           <table class="rpt-table"><thead><tr><th>শাখা কোড</th><th>শাখার নাম</th><th class="r">চালান সংখ্যা</th><th class="r">মোট প্রাপ্তি</th></tr></thead>
-          <tbody>${branches.map(x=>`<tr><td><code>${esc(x.branch.code)}</code></td><td>${esc(x.branch.name)}</td><td class="r">${x.vouchers}</td><td class="r"><strong>${x.qty}</strong> ${esc(i.unit)}</td></tr>`).join('')}</tbody>
-          <tfoot><tr><td colspan="2"><strong>সর্বমোট বিতরণ</strong></td><td class="r"><strong>${branches.reduce((s,x)=>s+x.vouchers,0)}</strong></td><td class="r"><strong>${branches.reduce((s,x)=>s+x.qty,0)} ${esc(i.unit)}</strong></td></tr></tfoot></table>
+          <tbody>${branches.map(x=>`<tr><td><code>${esc(x.branch.code)}</code></td><td>${esc(x.branch.name)}</td><td class="r">${x.vouchers}</td><td class="r"><strong>${x.qty}</strong> ${esc(i.unit)}</td></tr>`).join('')}
+          ${(data.otherDestinations||[]).map(x=>`<tr><td>—</td><td>${esc(x.name)} <span class="muted">(অতিরিক্ত লোকেশন)</span></td><td class="r">${x.vouchers}</td><td class="r"><strong>${x.qty}</strong> ${esc(i.unit)}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><td colspan="2"><strong>সর্বমোট বিতরণ</strong></td><td class="r"><strong>${branches.reduce((s,x)=>s+x.vouchers,0)+(data.otherDestinations||[]).reduce((s,x)=>s+x.vouchers,0)}</strong></td><td class="r"><strong>${branches.reduce((s,x)=>s+x.qty,0)+(data.otherDestinations||[]).reduce((s,x)=>s+x.qty,0)} ${esc(i.unit)}</strong></td></tr></tfoot></table>
         </div></div>
       </div>
       <div class="card" style="box-shadow:none;border:1px solid var(--border)">
@@ -174,7 +189,8 @@ Object.assign(APP, {
       ...d.rows.map(r=>[d.item.code,d.item.name,r.date,r.type,r.party,r.no,r.inQty,r.outQty,r.balance])
     ];
     rows.push([],['শাখাভিত্তিক বিতরণ'],['শাখা কোড','শাখার নাম','চালান সংখ্যা','মোট প্রাপ্তি'],
-      ...d.branchTotals.map(x=>[x.branch.code,x.branch.name,x.vouchers,x.qty]));
+      ...d.branchTotals.map(x=>[x.branch.code,x.branch.name,x.vouchers,x.qty]),
+      ...(d.otherDestinations||[]).map(x=>['',x.name+' (অতিরিক্ত লোকেশন)',x.vouchers,x.qty]));
     this.downloadFile('item-ledger-'+d.item.code+'-'+this.today()+'.csv','\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n'),'text/csv;charset=utf-8');
     this.showToast('আইটেম লেজার CSV ডাউনলোড হয়েছে');
   },
