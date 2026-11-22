@@ -198,7 +198,9 @@ const APP = {
       const branchId = loc?.branch_id ? branchIds[loc.branch_id] : null;
       return {
         id:n+1,_dbId:d.id,no:d.document_no,type:d.document_type === 'receipt' ? 'in' : 'out',
-        date:d.document_date,branchId,source:d.source_name || '',reference:d.reference_no || '',
+        date:d.document_date,branchId,sourceLocationName:locationsById[d.source_location_id]?.name || '',
+        destinationLocationName:locationsById[d.destination_location_id]?.name || '',
+        source:d.source_name || '',reference:d.reference_no || '',
         remarks:d.remarks || '',status:d.status === 'cancelled' ? 'cancelled' : 'active',
         createdAt:d.created_at,createdBy:d.created_by,
         cancelReason:d.cancellation_reason || '',cancelledAt:d.cancelled_at,
