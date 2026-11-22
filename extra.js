@@ -40,6 +40,25 @@ Object.assign(APP, {
         <div class="card-body"><div class="table-wrapper">${this.stockReportTable().html}</div></div>
       </div>
 
+      <div class="card" id="itemLedgerCard">
+        <div class="card-header">
+          <h3><i class="fas fa-book"></i> আইটেমভিত্তিক স্টক লেজার</h3>
+          <div class="header-actions">
+            <button class="btn btn-outline btn-sm" onclick="APP.exportItemLedger()" id="ledgerCsvBtn" disabled><i class="fas fa-file-csv"></i> CSV (Excel)</button>
+            <button class="btn btn-outline btn-sm" onclick="APP.printItemLedger()" id="ledgerPrintBtn" disabled><i class="fas fa-print"></i> প্রিন্ট</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="filters">
+            <select class="form-control" id="ledgerItem" onchange="APP.renderItemLedger()">
+              <option value="">-- আইটেম নির্বাচন করুন --</option>
+              ${this.getItems().slice().sort((a,b)=>a.code.localeCompare(b.code)).map(i=>`<option value="${i.id}">${esc(i.code)} - ${esc(i.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div id="itemLedgerBody"><div class="empty-state"><i class="fas fa-box-open"></i><h4>পূর্ণ হিসাব দেখতে একটি আইটেম নির্বাচন করুন</h4></div></div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <h3><i class="fas fa-code-branch"></i> শাখাভিত্তিক ডিস্ট্রিবিউশন সামারি</h3>
@@ -58,6 +77,113 @@ Object.assign(APP, {
         </div>
       </div>`;
     this.renderBranchReport();
+  },
+
+  itemLedgerData(itemId) {
+    const item = this.getItems().find(i => i.id === Number(itemId));
+    if (!item) return null;
+    const vouchers = this.getVouchers()
+      .filter(v => v.status !== 'cancelled' && v.lines.some(l => l.itemId === item.id))
+      .sort((a,b) => a.date.localeCompare(b.date) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    let balance = 0, opening = 0, stockIn = 0, stockOut = 0;
+    const branchTotals = Object.fromEntries(this.getBranches().map(b => [b.id, { branch:b, qty:0, vouchers:0 }]));
+    const rows = vouchers.map(v => {
+      const line = v.lines.find(l => l.itemId === item.id);
+      const qty = Number(line?.qty || 0);
+      let type, inQty = 0, outQty = 0, party = 'Regional Store';
+      if (v.type === 'in') {
+        inQty = qty;
+        if ((v.source || '').trim() === 'ওপেনিং স্টক') {
+          type = 'Opening Stock';
+          opening += qty;
+        } else {
+          type = 'Stock In';
+          stockIn += qty;
+        }
+        balance += qty;
+        party = v.source || 'প্রাপ্তি';
+      } else {
+        type = 'Branch Distribution';
+        outQty = qty;
+        stockOut += qty;
+        balance -= qty;
+        const br = this.getBranches().find(b => b.id === v.branchId);
+        party = br ? br.code + ' - ' + br.name : 'শাখা তথ্য পাওয়া যায়নি';
+        if (branchTotals[v.branchId]) {
+          branchTotals[v.branchId].qty += qty;
+          branchTotals[v.branchId].vouchers++;
+        }
+      }
+      return { date:v.date, type, no:v.no, party, reference:v.reference || '', inQty, outQty, balance, remarks:v.remarks || '' };
+    });
+    return { item, rows, opening, stockIn, stockOut, closing:balance,
+      branchTotals:Object.values(branchTotals).sort((a,b)=>a.branch.code.localeCompare(b.branch.code)) };
+  },
+
+  itemLedgerHTML(data) {
+    const i = data.item;
+    const branches = data.branchTotals;
+    return `
+      <div class="stats-grid" style="margin-bottom:16px">
+        <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-flag"></i></div><div class="stat-info"><p>Opening Stock</p><h3>${data.opening} ${esc(i.unit)}</h3></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-arrow-down"></i></div><div class="stat-info"><p>পরবর্তী Stock In</p><h3>${data.stockIn} ${esc(i.unit)}</h3></div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="fas fa-truck"></i></div><div class="stat-info"><p>মোট শাখায় বিতরণ</p><h3>${data.stockOut} ${esc(i.unit)}</h3></div></div>
+        <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-cubes"></i></div><div class="stat-info"><p>Regional Store Closing</p><h3>${data.closing} ${esc(i.unit)}</h3></div></div>
+      </div>
+      <div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:16px">
+        <div class="card-header"><h3>শাখাভিত্তিক প্রাপ্তির হিসাব</h3><span class="chip">সব শাখা</span></div>
+        <div class="card-body"><div class="table-wrapper">
+          <table class="rpt-table"><thead><tr><th>শাখা কোড</th><th>শাখার নাম</th><th class="r">চালান সংখ্যা</th><th class="r">মোট প্রাপ্তি</th></tr></thead>
+          <tbody>${branches.map(x=>`<tr><td><code>${esc(x.branch.code)}</code></td><td>${esc(x.branch.name)}</td><td class="r">${x.vouchers}</td><td class="r"><strong>${x.qty}</strong> ${esc(i.unit)}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><td colspan="2"><strong>সর্বমোট বিতরণ</strong></td><td class="r"><strong>${branches.reduce((s,x)=>s+x.vouchers,0)}</strong></td><td class="r"><strong>${branches.reduce((s,x)=>s+x.qty,0)} ${esc(i.unit)}</strong></td></tr></tfoot></table>
+        </div></div>
+      </div>
+      <div class="card" style="box-shadow:none;border:1px solid var(--border)">
+        <div class="card-header"><h3>পূর্ণ লেনদেনের ইতিহাস</h3><span class="muted small-note">${data.rows.length} টি সক্রিয় লেনদেন</span></div>
+        <div class="card-body"><div class="table-wrapper">
+          <table class="rpt-table"><thead><tr><th>#</th><th>তারিখ</th><th>লেনদেনের ধরন</th><th>উৎস / শাখা</th><th>চালান নং</th><th class="r">Stock In</th><th class="r">Stock Out</th><th class="r">Regional Store Balance</th></tr></thead>
+          <tbody>${data.rows.map((r,n)=>`<tr><td>${n+1}</td><td>${this.formatDate(r.date)}</td><td><span class="badge ${r.inQty?'badge-in':'badge-out'}">${esc(r.type)}</span></td><td>${esc(r.party)}</td><td><code>${esc(r.no)}</code></td><td class="r" style="color:var(--success)">${r.inQty||'—'}</td><td class="r" style="color:var(--danger)">${r.outQty||'—'}</td><td class="r"><strong>${r.balance}</strong></td></tr>`).join('')}</tbody>
+          <tfoot><tr><td colspan="5"><strong>সর্বমোট</strong></td><td class="r"><strong>${data.opening+data.stockIn}</strong></td><td class="r"><strong>${data.stockOut}</strong></td><td class="r"><strong>${data.closing}</strong></td></tr></tfoot></table>
+        </div></div>
+      </div>`;
+  },
+
+  renderItemLedger() {
+    const itemId = document.getElementById('ledgerItem')?.value;
+    const body = document.getElementById('itemLedgerBody');
+    const csv = document.getElementById('ledgerCsvBtn');
+    const print = document.getElementById('ledgerPrintBtn');
+    this._activeItemLedger = itemId ? this.itemLedgerData(itemId) : null;
+    if (!this._activeItemLedger) {
+      body.innerHTML = '<div class="empty-state"><i class="fas fa-box-open"></i><h4>পূর্ণ হিসাব দেখতে একটি আইটেম নির্বাচন করুন</h4></div>';
+      if (csv) csv.disabled = true;
+      if (print) print.disabled = true;
+      return;
+    }
+    body.innerHTML = this.itemLedgerHTML(this._activeItemLedger);
+    if (csv) csv.disabled = false;
+    if (print) print.disabled = false;
+  },
+
+  exportItemLedger() {
+    const d = this._activeItemLedger;
+    if (!d) return;
+    const q = x => '"' + String(x ?? '').replace(/"/g,'""') + '"';
+    const rows = [
+      ['আইটেম কোড','আইটেম নাম','তারিখ','লেনদেনের ধরন','উৎস / শাখা','চালান নং','Stock In','Stock Out','Regional Store Balance'],
+      ...d.rows.map(r=>[d.item.code,d.item.name,r.date,r.type,r.party,r.no,r.inQty,r.outQty,r.balance])
+    ];
+    rows.push([],['শাখাভিত্তিক বিতরণ'],['শাখা কোড','শাখার নাম','চালান সংখ্যা','মোট প্রাপ্তি'],
+      ...d.branchTotals.map(x=>[x.branch.code,x.branch.name,x.vouchers,x.qty]));
+    this.downloadFile('item-ledger-'+d.item.code+'-'+this.today()+'.csv','\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n'),'text/csv;charset=utf-8');
+    this.showToast('আইটেম লেজার CSV ডাউনলোড হয়েছে');
+  },
+
+  printItemLedger() {
+    const d = this._activeItemLedger;
+    if (!d) return;
+    const sub = 'আইটেম: '+d.item.code+' - '+d.item.name+' | Opening: '+d.opening+' | Stock In: '+d.stockIn+' | Distributed: '+d.stockOut+' | Closing: '+d.closing;
+    this.printHTML(this.reportDoc('আইটেমভিত্তিক স্টক লেজার',this.itemLedgerHTML(d),sub));
   },
 
   setRp() {
